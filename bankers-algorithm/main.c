@@ -248,6 +248,74 @@ bool isSafe() {
   return safe;
 }
 
+/*
+----------------------------------------------------------
+Requests resources
+Use: request(customer, resources);
+----------------------------------------------------------
+Parameters:
+  struct Customer customer
+  int *requested - array of requested resources
+----------------------------------------------------------
+*/
+void request(struct Customer customer, int *requested) {
+  // check if the request is valid
+  if (arrayGreaterThan(requested, customer.need)) {
+    printError("Request is invalid - exceeds need");
+    return;
+  } else if (arrayGreaterThan(requested, available)) {
+    printError("Request is invalid - exceeds available");
+    return;
+  }
+
+  // make backup of available resources
+  int *backup = arrayCopy(available);
+
+  // temporarily allocate resources
+  for (unsigned int i = 0; i < numTypes; i++) {
+    available[i] -= requested[i];
+  }
+
+  if (isSafe()) {
+    // update customer allocated and need
+    for (unsigned int i = 0; i < numTypes; i++) {
+      customer.allocated[i] += requested[i];
+      customer.need[i] -= requested[i];
+    }
+
+    printf("State is safe, and request is satisfied\n");
+  } else {
+    // restore available resources
+    available = arrayCopy(backup);
+
+    printError("Request is invalid - system is not in a safe state");
+  }
+}
+
+/*
+----------------------------------------------------------
+Releases resources
+Use: release(customer, resources);
+----------------------------------------------------------
+Parameters:
+  struct Customer customer
+  int *released - array of resources to be released
+----------------------------------------------------------
+*/
+void release(struct Customer customer, int *released) {
+  // check if the release is valid
+  if (arrayGreaterThan(released, customer.allocated)) {
+    printError("Release is invalid - exceeds allocated");
+    return;
+  }
+
+  // update customer available and allocated
+  for (unsigned int i = 0; i < numTypes; i++) {
+    available[i] += released[i];
+    customer.allocated[i] -= released[i];
+  }
+}
+
 // helper methods
 
 /*
@@ -360,6 +428,26 @@ bool arrayGreaterThanEqual(int *array1, int *array2) {
 
 /*
 ----------------------------------------------------------
+Copies an array into a new array
+Use: int *copy = arrayCopy(array);
+----------------------------------------------------------
+Parameters:
+  int *array - source array to copy
+Returns:
+  int *copy - destination array
+----------------------------------------------------------
+*/
+int *arrayCopy(int *array) {
+  int *copy = malloc(numTypes * sizeof(int));
+  for (unsigned int i = 0; i < numTypes; i++) {
+    copy[i] = array[i];
+  }
+
+  return copy;
+}
+
+/*
+----------------------------------------------------------
 Prints an error message and exits the program
 Use: printError("This is an error message");
 ----------------------------------------------------------
@@ -369,7 +457,6 @@ Parameters:
 */
 void printError(char *error) {
   printf("Error: %s\n", error);
-  exit(1);
 }
 
 /*
