@@ -30,6 +30,7 @@ struct Customer {
 // prototypes
 int init_available(int argc, char *args[]);
 int init_customers();
+void beginListening();
 bool isSafe();
 
 // helper prototypes
@@ -37,13 +38,16 @@ bool arrayLessThan(int *array1, int *array2);
 bool arrayGreaterThan(int *array1, int *array2);
 bool arrayLessThanEqual(int *array1, int *array2);
 bool arrayGreaterThanEqual(int *array1, int *array2);
+int  *arrayCopy(int *array);
 void printError(char *error);
 void printAvailable();
 void printCustomer(struct Customer customer);
 void printStatus();
+void printOpeningStatus();
 
 // global variables
 const char *FILENAME = "sample4_in.txt";
+const int INPUT_SIZE = 512;
 int *available;
 int numTypes;
 struct Customer *customers;
@@ -76,8 +80,11 @@ int main(int argc, char *args[]) {
   numTypes = init_available(argc, args);  // initialize available resources
   numCustomers = init_customers();        // initialize customers
   
-  // print status
-  printStatus();
+  // print opening status
+  printOpeningStatus();
+
+  // begin listening for input
+  beginListening();
 }
 
 // methods
@@ -144,7 +151,7 @@ int init_customers() {
     // check the number of tokens is correct
     if (numTokens != numTypes) {
       printError("Tokens in args don't match tokens in file");
-      return 1;
+      exit(1);
     }
 
     customerCount++;
@@ -186,6 +193,59 @@ int init_customers() {
   fclose(file);
   return customerCount;
 
+}
+
+void beginListening() {
+  while (true) { // loop until error or exit
+    // create buffers for input
+    char line[INPUT_SIZE];
+    char *command;
+    int customerID;
+    int *types = malloc(sizeof(int) * numTypes);
+
+    // prompt for input
+    printf("Enter Command: ");
+
+    // read the input
+    fgets(line, sizeof(line), stdin);
+    int typeIndex = -2; // set to -2 to skip first two tokens (command and id)
+
+    // break into tokens
+    char *token = strtok(line, " ");
+    while (token != NULL) {
+      if (typeIndex == -2) {
+        command = token;
+        command[strcspn(command, "\n")] = 0;
+      } else if (typeIndex == -1) {
+        customerID = atoi(token);
+      } else {
+        types[typeIndex] = atoi(token);
+      }
+
+      // advance loop
+      token = strtok(NULL, " ");
+      typeIndex++;
+    }
+
+    // check for valid input
+    if (strcmp(command, "Status") == 0) {
+      printStatus();
+    } else if (strcmp(command, "Run") == 0) {
+      // add run code
+    } else if (strcmp(command, "Exit") == 0) {
+      exit(0);
+    } else if (typeIndex == -1) {
+      printf("Invalid input, use one of RQ, RL, Status, Run, Exit\n");
+    } else if (typeIndex != numTypes) {
+      printf("Warning: Invalid number of types. expected %d, got %d\n", numTypes+2, typeIndex+2);
+    } else if (strcmp(command, "RQ") == 0) {
+      request(customerID, types);
+    } else if (strcmp(command, "RL") == 0) {
+      release(customerID, types);
+    } else {
+      printf("Invalid input, use one of RQ, RL, Status, Run, Exit\n");
+    }
+  }
 }
 
 /*
@@ -534,6 +594,24 @@ void printStatus() {
     printf("\n");
     for (unsigned int j = 0; j < numTypes; j++) {
       printf("%d ", customers[i].need[j]);
+    }
+  }
+  printf("\n");
+}
+
+/*
+----------------------------------------------------------
+Prints the opening status of the system
+Use: printOpeningStatus();
+----------------------------------------------------------
+*/
+void printOpeningStatus() {
+  printAvailable();
+  printf("Maximum Resources:");
+  for (unsigned int i = 0; i < numCustomers; i++) {
+    printf("\n");
+    for (unsigned int j = 0; j < numTypes; j++) {
+      printf("%d ", customers[i].maximum[j]);
     }
   }
   printf("\n");
