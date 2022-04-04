@@ -13,7 +13,7 @@ CP386 Assignment 4 - Question 2 - Best-Fit Algorithm
 #include <stdbool.h>
 #include <string.h>
 
-unsigned int MAX;
+// structures
 struct Block {
   void *start;        // pointer to start of block 
   void *end;          // pointer to end of block
@@ -22,14 +22,22 @@ struct Block {
   struct Block *next; // pointer to next block
 };
 
+// global variables
+unsigned int MAX;
+struct Block *head;
+
+// method prototypes
 void initBlock(struct Block *block, void *start, int size, int owner);
 void setBlock(struct Block *block, int size, int owner);
 void removeBlock(int ownerId);
 void mergeFreeBlocks();
+void bestfit(int size, int ownerID);
+
+// print method prototypes
 void printBlocks();
 void printError(char *message);
 
-struct Block *head;
+
 
 int main(int argc, char *argv[]) {
   // check for one argument
@@ -52,7 +60,7 @@ int main(int argc, char *argv[]) {
   setBlock(head, 20, 0);
   printBlocks();
 
-  setBlock(head->next, 30, 1);
+  bestfit(30, 1);
   printBlocks();
 
   removeBlock(1);
@@ -73,6 +81,7 @@ void setBlock(struct Block *block, int size, int owner) {
     return;
   }
 
+  // create new remaining block
   struct Block *newBlock = (struct Block*)malloc(sizeof(struct Block));
   initBlock(newBlock, block->start + size, block->size - size, -1);
 
@@ -107,6 +116,32 @@ void mergeFreeBlocks() {
       current = current->next;
     }
   }
+}
+
+void bestfit(int size, int ownerID) {
+  struct Block *current = head;
+  struct Block *bestfit = NULL;
+  int bestFitSize = MAX;
+
+  // search for best fit block
+  while (current != NULL) {
+    if (current->owner == -1 && current->size >= size) {
+      if (current->size < bestFitSize) {
+        bestfit = current;
+        bestFitSize = current->size;
+      }
+    }
+
+    current = current->next;
+  }
+
+  if (bestfit == NULL) {
+    printError("\n\tbestfit: no block found for given size");
+    return;
+  }
+
+  // set block to given size and owner
+  setBlock(bestfit, size, ownerID);
 }
 
 void printBlocks() {
