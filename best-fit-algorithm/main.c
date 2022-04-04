@@ -40,11 +40,20 @@ void beginListening();
 void printBlocks();
 void printError(char *message);
 
+/*
+----------------------------------------------------------
+Main of the program
+Use: make runBestfit args="<MAX>"
+----------------------------------------------------------
+Arguments:
+  argv[i] - max memory size
+----------------------------------------------------------
+*/
 int main(int argc, char *argv[]) {
   // check for one argument
   if (argc != 2) {
     printf("Usage: ./best-fit-algorithm <MAX>\n");
-    printf("   or: make runBestfit args=\"<args>\"\n");
+    printf("   or: make runBestfit args=\"<MAX>\"\n");
     return 1;
   }
 
@@ -69,6 +78,18 @@ int main(int argc, char *argv[]) {
   beginListening();
 }
 
+/*
+----------------------------------------------------------
+Initialize a block of memory
+Use: initBlock(block, address, size, owner);
+----------------------------------------------------------
+Parameters:
+  struct Block *block - pointer to block to initialize
+  void *start - pointer to start of block address
+  int size - size of block
+  int owner - owner of block
+----------------------------------------------------------
+*/
 void initBlock(struct Block *block, void *start, int size, int owner) {
   block->start = start;
   block->end = block->start + size;
@@ -77,6 +98,18 @@ void initBlock(struct Block *block, void *start, int size, int owner) {
   block->next = NULL;
 }
 
+/*
+----------------------------------------------------------
+Set a block of memory to a specific size and owner and
+  split the remaining memory into a new block
+Use: setBlock(bestfit, size, ownerID);
+----------------------------------------------------------
+Parameters:
+  struct Block *block - pointer to block to set
+  int size - size of block
+  int owner - owner of block
+----------------------------------------------------------
+*/
 void setBlock(struct Block *block, int size, int owner) {
   if (block->owner != -1) {
     printError("\n\tsetBlock: block is not free");
@@ -93,6 +126,16 @@ void setBlock(struct Block *block, int size, int owner) {
   block->next = newBlock;
 }
 
+/*
+----------------------------------------------------------
+Remove a block of memory from the list and merge the
+  remaining adjacent blocks
+Use: removeBlock(id);
+----------------------------------------------------------
+Parameters:
+  int ownerId - id of block to remove
+----------------------------------------------------------
+*/
 void removeBlock(int ownerId) {
   // search for block in list
   struct Block *current = head;
@@ -108,6 +151,12 @@ void removeBlock(int ownerId) {
   mergeFreeBlocks();
 }
 
+/*
+----------------------------------------------------------
+Merge adjacent free blocks into a single block
+Use: mergeFreeBlocks();
+----------------------------------------------------------
+*/
 void mergeFreeBlocks() {
   struct Block *current = head;
   while (current->next != NULL) {
@@ -121,6 +170,17 @@ void mergeFreeBlocks() {
   }
 }
 
+/*
+----------------------------------------------------------
+Find the optimal block of memory to allocate by the
+  best-fit algorithm
+Use: bestfit(size, ownerID)
+----------------------------------------------------------
+Parameters:
+  int size - size of block to allocate
+  int ownerID - owner of block to allocate
+----------------------------------------------------------
+*/
 void bestfit(int size, int ownerID) {
   struct Block *current = head;
   struct Block *bestfit = NULL;
@@ -148,6 +208,12 @@ void bestfit(int size, int ownerID) {
   printf("Successfully allocated %d to process P%d\n", size, ownerID);
 }
 
+/*
+----------------------------------------------------------
+Main program loop to listen for user input
+Use: beginListening();
+----------------------------------------------------------
+*/
 void beginListening() {
   char *command;
   int id;
@@ -220,6 +286,17 @@ void beginListening() {
   }
 }
 
+/*
+----------------------------------------------------------
+Checks if a block with the given id exists
+Use: if(hasBlock(0)) {...}
+----------------------------------------------------------
+Parameters:
+  int id - id of block to check for
+Returns:
+  bool - true if block exists, false otherwise
+----------------------------------------------------------
+*/
 bool hasBlock(int ownerId) {
   struct Block *current = head;
   while (current != NULL) {
@@ -232,6 +309,12 @@ bool hasBlock(int ownerId) {
   return false;
 }
 
+/*
+----------------------------------------------------------
+Prints the list of blocks and free memory to the console
+Use: printBlocks();
+----------------------------------------------------------
+*/
 void printBlocks() {
   int free = 0;
   struct Block *current = head;
@@ -249,6 +332,15 @@ void printBlocks() {
   printf("Free: %d\n", free);
 }
 
+/*
+----------------------------------------------------------
+Prints an error message and exits the program
+Use: printError("This is an error message");
+----------------------------------------------------------
+Parameters:
+  char *error - the error message to print
+----------------------------------------------------------
+*/
 void printError(char *message) {
   printf("Error: %s\n", message);
 }
