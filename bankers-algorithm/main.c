@@ -31,19 +31,23 @@ struct Customer {
 int init_available(int argc, char *args[]);
 int init_customers();
 void beginListening();
-bool isSafe();
+int* isSafe();
+void request(struct Customer customer, int *requested);
+void release(struct Customer customer, int *released);
 
 // helper prototypes
 bool arrayLessThan(int *array1, int *array2);
 bool arrayGreaterThan(int *array1, int *array2);
 bool arrayLessThanEqual(int *array1, int *array2);
 bool arrayGreaterThanEqual(int *array1, int *array2);
-int  *arrayCopy(int *array);
+bool arrayAnyGreater(int *array1, int *array2);
+int* arrayCopy(int *array);
 void printError(char *error);
 void printAvailable();
 void printCustomer(struct Customer customer);
 void printStatus();
 void printOpeningStatus();
+void printArray(int *array, int size);
 
 // global variables
 const char *FILENAME = "sample4_in.txt";
@@ -196,12 +200,13 @@ int init_customers() {
 }
 
 void beginListening() {
+  char *command;
+  int customerID = -1;
+  int *types = malloc(sizeof(int) * numTypes);
+
   while (true) { // loop until error or exit
     // create buffers for input
     char line[INPUT_SIZE];
-    char *command;
-    int customerID;
-    int *types = malloc(sizeof(int) * numTypes);
 
     // prompt for input
     printf("Enter Command: ");
@@ -218,6 +223,10 @@ void beginListening() {
         command[strcspn(command, "\n")] = 0;
       } else if (typeIndex == -1) {
         customerID = atoi(token);
+        if (customerID < 0 || customerID >= numCustomers) {
+          printError("Invalid customer ID");
+          break;
+        }
       } else {
         types[typeIndex] = atoi(token);
       }
@@ -239,12 +248,17 @@ void beginListening() {
     } else if (typeIndex != numTypes) {
       printf("Warning: Invalid number of types. expected %d, got %d\n", numTypes+2, typeIndex+2);
     } else if (strcmp(command, "RQ") == 0) {
-      request(customerID, types);
+      request(customers[customerID], types);
     } else if (strcmp(command, "RL") == 0) {
-      release(customerID, types);
+      release(customers[customerID], types);
     } else {
       printf("Invalid input, use one of RQ, RL, Status, Run, Exit\n");
     }
+
+    command = NULL;
+    customerID = -1;
+    free(types);
+    types = malloc(sizeof(int) * numTypes);
   }
 }
 
@@ -254,11 +268,13 @@ Checks if the system is in a safe state
 Use: if (isSafe()) {...}
 ----------------------------------------------------------
 Returns:
-  safe - [true/false] whether the system is safe or not
+  sequence - array of customer IDs in safe sequence
+    or NULL if system is not in a safe state
 ----------------------------------------------------------
 */
-bool isSafe() {
-  bool safe = true;
+int *isSafe() {
+  int *sequence = malloc(sizeof(int) * numCustomers);
+  unsigned int sequenceIndex = 0;
 
   // ===== step 1 =====
   // define work = available and finish = false
@@ -285,6 +301,9 @@ bool isSafe() {
 
         finish[i] = true;
         changeMade = true;
+
+        sequence[sequenceIndex] = i;
+        sequenceIndex++;
       }
     }
 
@@ -301,11 +320,11 @@ bool isSafe() {
   // ===== step 4 =====
   for (unsigned int i = 0; i < numTypes; i++) {
     if (finish[i] == false) {
-      safe = false;
+      sequence = NULL;
     }
   }
 
-  return safe;
+  return sequence;
 }
 
 /*
@@ -320,10 +339,10 @@ Parameters:
 */
 void request(struct Customer customer, int *requested) {
   // check if the request is valid
-  if (arrayGreaterThan(requested, customer.need)) {
+  if (arrayAnyGreater(requested, customer.need)) {
     printError("Request is invalid - exceeds need");
     return;
-  } else if (arrayGreaterThan(requested, available)) {
+  } else if (arrayAnyGreater(requested, available)) {
     printError("Request is invalid - exceeds available");
     return;
   }
@@ -336,7 +355,8 @@ void request(struct Customer customer, int *requested) {
     available[i] -= requested[i];
   }
 
-  if (isSafe()) {
+  int *safeSequence = isSafe();
+  if (safeSequence != NULL) {
     // update customer allocated and need
     for (unsigned int i = 0; i < numTypes; i++) {
       customer.allocated[i] += requested[i];
@@ -364,7 +384,7 @@ Parameters:
 */
 void release(struct Customer customer, int *released) {
   // check if the release is valid
-  if (arrayGreaterThan(released, customer.allocated)) {
+  if (arrayAnyGreater(released, customer.allocated)) {
     printError("Release is invalid - exceeds allocated");
     return;
   }
@@ -484,6 +504,34 @@ bool arrayGreaterThanEqual(int *array1, int *array2) {
   }
 
   return greaterThanEqual;
+}
+
+/*
+----------------------------------------------------------
+Returns if any element in the array is greater than another
+Use: if (arrayAnyGreater(array1, array2)) {...}
+----------------------------------------------------------
+Parameters:
+  int *array1 - first array to compare
+  int *array2 - second array to compare against
+Returns:
+  greater - [true/false] whether any element in the first
+    array is greater than the corresponding element in the
+    second array
+----------------------------------------------------------
+*/
+bool arrayAnyGreater(int *array1, int *array2) {
+  bool greater = false;
+  unsigned int i = 0;
+  while (i < numTypes && greater == false) {
+    if (array1[i] > array2[i]) {
+      greater = true;
+    }
+
+    i++;
+  }
+
+  return greater;
 }
 
 /*
@@ -613,6 +661,13 @@ void printOpeningStatus() {
     for (unsigned int j = 0; j < numTypes; j++) {
       printf("%d ", customers[i].maximum[j]);
     }
+  }
+  printf("\n");
+}
+
+void printArray(int *array, int size) {
+  for (unsigned int i = 0; i < size; i++) {
+    printf("%d ", array[i]);
   }
   printf("\n");
 }
