@@ -34,6 +34,8 @@ void beginListening();
 int* isSafe();
 void request(struct Customer customer, int *requested);
 void release(struct Customer customer, int *released);
+void run();
+void *customerThread(void *id);
 
 // helper prototypes
 bool arrayLessThan(int *array1, int *array2);
@@ -41,7 +43,7 @@ bool arrayGreaterThan(int *array1, int *array2);
 bool arrayLessThanEqual(int *array1, int *array2);
 bool arrayGreaterThanEqual(int *array1, int *array2);
 bool arrayAnyGreater(int *array1, int *array2);
-int* arrayCopy(int *array);
+int* arrayCopy(int *array, int size);
 void printError(char *error);
 void printAvailable();
 void printCustomer(struct Customer customer);
@@ -56,6 +58,7 @@ int *available;
 int numTypes;
 struct Customer *customers;
 int numCustomers;
+int *safeSequence;
 
 /*
 ----------------------------------------------------------
@@ -240,7 +243,7 @@ void beginListening() {
     if (strcmp(command, "Status") == 0) {
       printStatus();
     } else if (strcmp(command, "Run") == 0) {
-      // add run code
+      run();
     } else if (strcmp(command, "Exit") == 0) {
       exit(0);
     } else if (typeIndex == -1) {
@@ -282,18 +285,18 @@ int *isSafe() {
   bool *finish = malloc(numCustomers * sizeof(bool));
   for (unsigned int i = 0; i < numTypes; i++) {
     work[i] = available[i];
-    finish[i] = available[i];
+  }
+  for (unsigned int i = 0; i < numCustomers; i++) {
+    finish[i] = false;
   }
 
   // ===== step 2 =====
-  unsigned int i = 0;
+  int i = 0;
   bool checkedAll = false;
-  bool changeMade;
+  bool changeMade = false;
   while (checkedAll == false) {
-    changeMade = false;
-
     if (finish[i] == false) {
-      if (arrayLessThan(customers[i].need, work)) {
+      if (arrayLessThanEqual(customers[i].need, work)) {
         // ===== step 3 =====
         for (unsigned int j = 0; j < numTypes; j++) {
           work[j] += customers[i].allocated[j];
@@ -301,7 +304,7 @@ int *isSafe() {
 
         finish[i] = true;
         changeMade = true;
-
+        
         sequence[sequenceIndex] = i;
         sequenceIndex++;
       }
@@ -311,6 +314,7 @@ int *isSafe() {
     if (i >= numCustomers) {
       if (changeMade) {
         i = 0;
+        changeMade = false;
       } else {
         checkedAll = true;
       }
@@ -318,7 +322,7 @@ int *isSafe() {
   }
 
   // ===== step 4 =====
-  for (unsigned int i = 0; i < numTypes; i++) {
+  for (unsigned int i = 0; i < numCustomers; i++) {
     if (finish[i] == false) {
       sequence = NULL;
     }
@@ -347,27 +351,23 @@ void request(struct Customer customer, int *requested) {
     return;
   }
 
-  // make backup of available resources
-  int *backup = arrayCopy(available);
-
   // temporarily allocate resources
   for (unsigned int i = 0; i < numTypes; i++) {
     available[i] -= requested[i];
+    customer.allocated[i] += requested[i];
+    customer.need[i] -= requested[i];
   }
 
-  int *safeSequence = isSafe();
+  safeSequence = isSafe();
   if (safeSequence != NULL) {
-    // update customer allocated and need
-    for (unsigned int i = 0; i < numTypes; i++) {
-      customer.allocated[i] += requested[i];
-      customer.need[i] -= requested[i];
-    }
-
     printf("State is safe, and request is satisfied\n");
   } else {
     // restore available resources
-    available = arrayCopy(backup);
-
+    for (unsigned int i = 0; i < numTypes; i++) {
+      available[i] += requested[i];
+      customer.allocated[i] -= requested[i];
+      customer.need[i] += requested[i];
+    }
     printError("Request is invalid - system is not in a safe state");
   }
 }
@@ -394,6 +394,58 @@ void release(struct Customer customer, int *released) {
     available[i] += released[i];
     customer.allocated[i] -= released[i];
   }
+}
+
+/*
+----------------------------------------------------------
+Runs the system and all its threads
+Use: run()
+----------------------------------------------------------
+*/
+void run() {
+  printf("Safe sequence is: ");
+  for (unsigned int i = 0; i < numCustomers; i++) {
+    printf("%d ", safeSequence[i]);
+  }
+
+  for (unsigned int i = 0; i < numCustomers; i++) {
+    int customerID = safeSequence[i];
+
+    printf("\n-->");
+    printf("\tCustomer/Thread %d\n", customerID);
+    printf("\tAllocated: ");
+    printArray(customers[customerID].allocated, numTypes);
+    printf("\tNeeded: ");
+    printArray(customers[customerID].need, numTypes);
+    printf("\tAvailable: ");
+    printArray(available, numTypes);
+
+    pthread_t id;
+    pthread_create(&id, NULL, customerThread, &customerID);
+    pthread_join(id, NULL);
+    printf("\tThread has finished\n");
+
+    // release customer resources
+    printf("Thread %d is releasing resources\n", customerID);
+    struct Customer customer = customers[customerID];
+    for (unsigned int i = 0; i < numTypes; i++) {
+      available[i] += customer.allocated[i];
+      customer.allocated[i] = 0;
+      customer.need[i] = customer.maximum[i];
+    }
+  }
+}
+
+/*
+----------------------------------------------------------
+Thread function for a customer
+Use: pthread_create(&id, NULL, customerThread, &customerID);
+----------------------------------------------------------
+*/
+void *customerThread(void *id) {
+  printf("\tThread has started\n");
+  unsigned int customerID = *((unsigned int *) id);
+  printf("\t\tI'm thread %d!\n", customerID);
 }
 
 // helper methods
@@ -455,7 +507,7 @@ bool arrayGreaterThan(int *array1, int *array2) {
 /*
 ----------------------------------------------------------
 Check if array is less than or equal to another array
-Use: if (arrayLessThan(array1, array2)) {...}
+Use: if (arrayLessThanEqual(array1, array2)) {...}
 ----------------------------------------------------------
 Parameters:
   int *array1 - first array to compare
@@ -537,17 +589,18 @@ bool arrayAnyGreater(int *array1, int *array2) {
 /*
 ----------------------------------------------------------
 Copies an array into a new array
-Use: int *copy = arrayCopy(array);
+Use: int *copy = arrayCopy(array, size);
 ----------------------------------------------------------
 Parameters:
   int *array - source array to copy
+  int size - size of the array
 Returns:
   int *copy - destination array
 ----------------------------------------------------------
 */
-int *arrayCopy(int *array) {
-  int *copy = malloc(numTypes * sizeof(int));
-  for (unsigned int i = 0; i < numTypes; i++) {
+int *arrayCopy(int *array, int size) {
+  int *copy = malloc(size * sizeof(int));
+  for (unsigned int i = 0; i < size; i++) {
     copy[i] = array[i];
   }
 
