@@ -394,6 +394,7 @@ void release(struct Customer customer, int *released) {
     available[i] += released[i];
     customer.allocated[i] -= released[i];
   }
+  printf("Release is complete\n");
 }
 
 /*
